@@ -1,0 +1,185 @@
+Integrate Gradle with Nexus
+===========================
+###################
+nexus server will be on machine 
+build process or continuous integration will be on another machine
+First will do manual or from jenkins machine
+##############
+Nexus configuration
+
+1. Create an ec2 Instance with t2.medium for nexus (port 8081)
+prerequisite
+  1. java 8 is needed for nexus
+  
+  yum install java-1.8.0-openjdk-devel
+
+
+download latest nexus version and will change the ownsership
+
+2. Google and search nexus3 download,
+ download - Sonatype Help (link)
+  to some other non-root user
+  
+there are few companies use jfrob instead of nexus
+2. download the nexus3, google nexus3 download
+https://help.sonatype.com/repomanager3/product-information/download
+
+3. cd /opt
+4. wget https://download.sonatype.com/nexus/3/nexus-3.37.3-02-unix.tar.gz
+5. tar xvf nexus-3.37.3-02-unix.tar.gz
+there will be two folders
+nexus-3.37.3-02
+sonatype-work ==> this folder keeps the nexus default admin password or credentials will be there & log files.
+
+[root@ip-172-31-32-134 opt]# getfacl nexus-3.37.3-02
+# file: nexus-3.37.3-02
+# owner: root
+# group: root
+user::rwx
+group::r-x
+other::r-x
+
+6. chown ec2-user:ec2-user nexus-3.37.3-02 sonatype-work/ -R
+
+7. cd /opt/nexus-3.37.3-02/bin
+8. vi nexus.rc
+run_as_user="ec2-user"  ==> add this entry
+wq!
+9. /opt/nexus-3.37.3-02/bin/nexus start
+10. /opt/nexus-3.37.3-02/bin/nexus status
+ps axu | grep -i java ==> check the java process is running with ec2-user
+netstat -plunt |grep :8081
+[root@ip-172-31-32-134 bin]# netstat -plunt|grep :8081
+tcp        0      0 0.0.0.0:8081            0.0.0.0:*               LISTEN      6546/java
+
+10. go to browser: http://13.235.45.62:8081/
+and click on sign in and create the password, i have set 
+admin user password is admin123
+click on
+
+ server administration and configuration and then click on repositories
+
+it will show various repositories like maven-releases & maven-snapshots and these repositories can be used by gradle project as well.
+
+http://15.206.88.53:8081/repository/maven-snapshots/
+
+http://15.206.88.53:8081/repository/maven-releases/
+
+============
+============
+
+Now we need to integrate nexus with gradle project..
+
+If you are working with gradle 6, then nexus will work with http & https
+If you are working with gradle 7, then nexus will work with https only
+
+go to google and search, index of gradle and look latest gradle version of 6:
+https://distfiles.macports.org/gradle/
+
+https://distfiles.macports.org/gradle/gradle-6.8.3-bin.zip
+wget https://distfiles.macports.org/gradle/gradle-6.8.3-bin.zip
+unzip gradle-6.8.3
+export PATH=$PATH:/opt/gradle-6.8.3/bin
+
+springboot-tomcat-gradle-war ==> repository
+
+git clone url
+git clone https://github.com/Shikhar82/springboot-tomcat-gradle-war.git
+
+gradle nexus publish search in google
+how to create a gradle library
+
+edit build.gradle and the below plugins
+
+id 'maven-publish'  ==> for integrating gradle with nexus
+
+also we need to add below:
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+
+ // bootJar is the default build task configured by Spring Boot
+            artifact bootJar
+        }
+    }
+
+    repositories {
+        maven {
+            url = "http://15.206.88.53:8081/repository/maven-snapshots/"
+            credentials {
+                username "admin"
+                password "admin123"
+            }
+        }
+    }
+}
+
+build.gradle is equivalent to pom.xml
+
+gradle clean build 
+
+in casse of maven we used mvn deploy for gradle we need to use gradle publish
+
+Now if we want to publish it on release:
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+
+ // bootJar is the default build task configured by Spring Boot
+            artifact bootJar
+        }
+    }
+
+    repositories {
+        maven {
+             if(project.version.endsWith('-SNAPSHOT')) {
+                url "http://15.206.88.53:8081/repository/maven-snapshots/"
+            } else {
+                url "http://15.206.88.53:8081/repository/maven-releases/"
+                }
+            credentials {
+                username "admin"
+                password "admin123"
+            }
+        }
+    }
+}
+
+
+We can also use the creadentials on 
+
+credentials {
+                username project.repoUser
+                password project.repoPassword
+
+vi gradle.settings
+repoUser=admin
+repoPassword=admin123
+
+change the version to 0.0.2 from build.gradle
+
+group = 'com.example'
+version = '0.0.2'
+sourceCompatibility = '1.8'
+
+gradle clean build
+gradle publish
+
+###Now pass the arguments through command line:
+
+
+again change the version from build.gradle
+group = 'com.example'
+version = '0.0.3'
+sourceCompatibility = '1.8'
+edit gradle.properties and add below entry
+[root@ci-server springboot-tomcat-gradle-war]# cat gradle.properties
+repoUser=userNameFromCommandLine
+repoPassword=passwordFromCommandLine
+[root@ci-server springboot-tomcat-gradle-war]#
+
+gradle clean build
+
+gradle publish -PrepoUser=admin -PrepoPassword=admin123

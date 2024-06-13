@@ -1,0 +1,10 @@
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 975050127850.dkr.ecr.us-east-1.amazonaws.com
+
+docket pull 975050127850.dkr.ecr.us-east-1.amazonaws.com/mysampleproject
+
+
+docker run --name=sprinbootcontainer -p 8080:8080 --detach 975050127850.dkr.ecr.us-east-1.amazonaws.com/mysampleproject
+
+
+/course-svc/getAllAwsServices
+/course-svc/getAllDevopsTools

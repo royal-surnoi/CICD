@@ -1,0 +1,1 @@
+http://54.146.64.133:8080/sonarqube-webhook/
